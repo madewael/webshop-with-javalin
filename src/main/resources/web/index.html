@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        ul {
+            float: left;
+            width: 40%;
+        }
+    </style>
+</head>
+<body>
+
+<form id="webshopform">
+    <select id="customers">
+        <option value="none">-- Select Customer ---</option>
+    </select>
+    <ul id="stock"></ul>
+    <ul id="cart"></ul>
+</form>
+
+<ul id="log"></ul>
+
+
+<script>
+    function addToLog(txt) {
+        var $log = document.getElementById("log");
+        var $li = document.createElement("li");
+        $li.appendChild(document.createTextNode(txt));
+
+        $log.insertBefore($li, $log.firstChild);
+    }
+
+    function res2json(res) {
+        return res.json();
+    }
+
+    function throwIfError(json) {
+        if (json.error) {
+            throw json.error;
+        } else {
+            return json;
+        }
+    }
+
+
+    fetch("/API/customers")
+        .then(res2json)
+        .then(throwIfError)
+        .then(function (customers) {
+            customers.forEach(function (customer) {
+                var $option = document.createElement("option");
+                $option.value = customer.name;
+                $option.appendChild(document.createTextNode(customer.name));
+                document.getElementById("customers").appendChild($option);
+            })
+        })
+        .catch(addToLog);
+
+
+    fetch("/API/products")
+        .then(res2json)
+        .then(throwIfError)
+        .then(function (products) {
+            var $li = document.createElement("li");
+            $li.appendChild(document.createTextNode(JSON.stringify(products)));
+            document.getElementById("stock").appendChild($li);
+        })
+        .catch(addToLog);;
+
+    function getCurrentCustomer() {
+        var $customers = document.getElementById("customers");
+        return $customers.value;
+    }
+
+    function addProductToCart(product) {
+        var currentCustomer = getCurrentCustomer();
+
+        fetch(`/API/cart/${currentCustomer}/add/${product}`, {method: 'POST'})
+            .then(res2json)
+            .then(throwIfError)
+            .then(function (res) {
+                console.log("addProductToCart", JSON.stringify(res));
+                updateStock(res.stock.products);
+                updateCart(res.cart.products);
+            })
+            .catch(addToLog);;
+
+    }
+
+    function removeProductFromCart(product) {
+        var currentCustomer = getCurrentCustomer();
+
+        fetch(`/API/cart/${currentCustomer}/del/${product}`, {method: 'POST'})
+            .then(res2json)
+            .then(throwIfError)
+            .then(function (res) {
+                console.log("removeProductFromCart", JSON.stringify(res));
+                updateStock(res.stock.products);
+                updateCart(res.cart.products);
+            })
+            .catch(addToLog);
+
+    }
+
+    function updateStock(stock) {
+        var $ul = document.getElementById("stock");
+        $ul.innerHTML = "";
+
+        Object.keys(stock).forEach(function(product,index) {
+            var count = stock[product];
+
+            var $li = document.createElement("li");
+            $li.appendChild(document.createTextNode(product + " " + count));
+
+
+            var $btn = document.createElement("button");
+            $btn.appendChild(document.createTextNode("ADD"));
+            $btn.onclick = function(evt) {
+                evt.preventDefault();
+                console.log(product + " clicked");
+                addProductToCart(product);
+            };
+            $li.appendChild($btn);
+
+            $ul.appendChild($li);
+        });
+    }
+
+    function updateCart(cart) {
+        var $ul = document.getElementById("cart");
+        $ul.innerHTML = "";
+
+        Object.keys(cart).forEach(function(product,index) {
+            var count = cart[product];
+
+            var $li = document.createElement("li");
+            $li.appendChild(document.createTextNode(product));
+
+
+            var $btnDel = document.createElement("button");
+            $btnDel.appendChild(document.createTextNode("-"));
+            $btnDel.onclick = function(evt) {
+                evt.preventDefault();
+                console.log("del" + product + " clicked");
+                removeProductFromCart(product);
+            };
+            $li.appendChild($btnDel);
+
+            $li.appendChild(document.createTextNode(count));
+
+            var $btnAdd = document.createElement("button");
+            $btnAdd.appendChild(document.createTextNode("+"));
+            $btnAdd.onclick = function(evt) {
+                evt.preventDefault();
+                console.log("add" + product + " clicked");
+                addProductToCart(product);
+            };
+            $li.appendChild($btnAdd);
+
+            $ul.appendChild($li);
+        });
+    }
+
+    fetch("/API/products/stock")
+        .then(res2json)
+        .then(throwIfError)
+        .then(function (res) {
+            updateStock(res.products);
+        })
+        .catch(addToLog);
+
+
+    document.getElementById("customers").onchange = function(evt) {
+        var currentCustomer = getCurrentCustomer();
+
+        fetch(`/API/cart/${currentCustomer}`)
+            .then(res2json)
+            .then(throwIfError)
+            .then(function (res) {
+                updateCart(res.cart.products);
+            })
+            .catch(addToLog);
+    };
+
+</script>
+</body>
+</html>
